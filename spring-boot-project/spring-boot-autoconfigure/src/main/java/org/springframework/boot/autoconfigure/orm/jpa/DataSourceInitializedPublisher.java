@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,13 +29,13 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceSchemaCreatedEvent;
 import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
-import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.JpaVendorAdapter;
@@ -133,8 +133,8 @@ class DataSourceInitializedPublisher implements BeanPostProcessor {
 		public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata,
 				BeanDefinitionRegistry registry) {
 			if (!registry.containsBeanDefinition(BEAN_NAME)) {
-				GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
-				beanDefinition.setBeanClass(DataSourceInitializedPublisher.class);
+				AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder.genericBeanDefinition(
+						DataSourceInitializedPublisher.class, DataSourceInitializedPublisher::new).getBeanDefinition();
 				beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 				// We don't need this one to be post processed otherwise it can cause a
 				// cascade of bean instantiation that we would rather avoid.
@@ -194,11 +194,7 @@ class DataSourceInitializedPublisher implements BeanPostProcessor {
 		@Override
 		public void postProcessEntityManagerFactory(EntityManagerFactory entityManagerFactory) {
 			this.delegate.postProcessEntityManagerFactory(entityManagerFactory);
-			AsyncTaskExecutor bootstrapExecutor = this.factoryBean.getBootstrapExecutor();
-			if (bootstrapExecutor != null) {
-				bootstrapExecutor.execute(() -> DataSourceInitializedPublisher.this
-						.publishEventIfRequired(this.factoryBean, entityManagerFactory));
-			}
+			publishEventIfRequired(this.factoryBean, entityManagerFactory);
 		}
 
 	}

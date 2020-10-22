@@ -49,8 +49,8 @@ import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.core.io.Resource;
+import org.springframework.core.metrics.StartupStep;
 import org.springframework.util.StringUtils;
-import org.springframework.web.context.ContextLoader;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.ServletContextAware;
 import org.springframework.web.context.WebApplicationContext;
@@ -87,6 +87,7 @@ import org.springframework.web.context.support.WebApplicationContextUtils;
  *
  * @author Phillip Webb
  * @author Dave Syer
+ * @author Scott Frederick
  * @since 2.0.0
  * @see AnnotationConfigServletWebServerApplicationContext
  * @see XmlServletWebServerApplicationContext
@@ -164,7 +165,9 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 
 	@Override
 	protected void doClose() {
-		AvailabilityChangeEvent.publish(this, ReadinessState.REFUSING_TRAFFIC);
+		if (isActive()) {
+			AvailabilityChangeEvent.publish(this, ReadinessState.REFUSING_TRAFFIC);
+		}
 		super.doClose();
 	}
 
@@ -172,8 +175,11 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 		WebServer webServer = this.webServer;
 		ServletContext servletContext = getServletContext();
 		if (webServer == null && servletContext == null) {
+			StartupStep createWebServer = this.getApplicationStartup().start("spring.boot.webserver.create");
 			ServletWebServerFactory factory = getWebServerFactory();
+			createWebServer.tag("factory", factory.getClass().toString());
 			this.webServer = factory.getWebServer(getSelfInitializer());
+			createWebServer.end();
 			getBeanFactory().registerSingleton("webServerGracefulShutdown",
 					new WebServerGracefulShutdownLifecycle(this.webServer));
 			getBeanFactory().registerSingleton("webServerStartStop",
@@ -270,7 +276,6 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 			}
 			return;
 		}
-		Log logger = LogFactory.getLog(ContextLoader.class);
 		servletContext.log("Initializing Spring embedded WebApplicationContext");
 		try {
 			servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, this);

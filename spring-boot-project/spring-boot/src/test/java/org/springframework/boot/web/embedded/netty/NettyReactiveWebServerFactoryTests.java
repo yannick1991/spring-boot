@@ -21,7 +21,6 @@ import java.time.Duration;
 import java.util.Arrays;
 
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import reactor.core.publisher.Mono;
@@ -126,11 +125,6 @@ class NettyReactiveWebServerFactoryTests extends AbstractReactiveWebServerFactor
 		this.webServer.stop();
 	}
 
-	@Disabled("Flaky due to https://github.com/reactor/reactor-netty/issues/1093")
-	@Override
-	protected void whenARequestRemainsInFlightThenShutDownGracefullyDoesNotInvokeCallbackUntilTheRequestCompletes() {
-	}
-
 	protected Mono<String> testSslWithAlias(String alias) {
 		String keyStore = "classpath:test.jks";
 		String keyPassword = "password";
@@ -146,7 +140,7 @@ class NettyReactiveWebServerFactoryTests extends AbstractReactiveWebServerFactor
 		WebClient client = WebClient.builder().baseUrl("https://localhost:" + this.webServer.getPort())
 				.clientConnector(connector).build();
 		return client.post().uri("/test").contentType(MediaType.TEXT_PLAIN).body(BodyInserters.fromValue("Hello World"))
-				.exchange().flatMap((response) -> response.bodyToMono(String.class));
+				.retrieve().bodyToMono(String.class);
 	}
 
 }

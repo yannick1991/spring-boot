@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.boot.gradle.plugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
@@ -26,6 +27,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaApplication;
+import org.gradle.api.provider.Property;
 
 import org.springframework.boot.gradle.dsl.SpringBootExtension;
 import org.springframework.boot.loader.tools.MainClassFinder;
@@ -35,7 +37,7 @@ import org.springframework.boot.loader.tools.MainClassFinder;
  *
  * @author Andy Wilkinson
  */
-final class MainClassConvention implements Callable<Object> {
+final class MainClassConvention implements Callable<String> {
 
 	private static final String SPRING_BOOT_APPLICATION_CLASS_NAME = "org.springframework.boot.autoconfigure.SpringBootApplication";
 
@@ -49,16 +51,44 @@ final class MainClassConvention implements Callable<Object> {
 	}
 
 	@Override
-	public Object call() throws Exception {
+	public String call() throws Exception {
 		SpringBootExtension springBootExtension = this.project.getExtensions().findByType(SpringBootExtension.class);
-		if (springBootExtension != null && springBootExtension.getMainClassName() != null) {
-			return springBootExtension.getMainClassName();
+		if (springBootExtension != null) {
+			String mainClass = springBootExtension.getMainClass().getOrNull();
+			if (mainClass != null) {
+				return mainClass;
+			}
 		}
+		String javaApplicationMainClass = getJavaApplicationMainClass();
+		return (javaApplicationMainClass != null) ? javaApplicationMainClass : resolveMainClass();
+	}
+
+	@SuppressWarnings({ "unchecked", "deprecation" })
+	private String getJavaApplicationMainClass() {
 		JavaApplication javaApplication = this.project.getConvention().findByType(JavaApplication.class);
-		if (javaApplication != null && javaApplication.getMainClassName() != null) {
-			return javaApplication.getMainClassName();
+		if (javaApplication == null) {
+			return null;
 		}
-		return resolveMainClass();
+		Method getMainClass = findMethod(JavaApplication.class, "getMainClass");
+		if (getMainClass != null) {
+			try {
+				Property<String> mainClass = (Property<String>) getMainClass.invoke(javaApplication);
+				return mainClass.getOrElse(null);
+			}
+			catch (Exception ex) {
+				// Continue
+			}
+		}
+		return javaApplication.getMainClassName();
+	}
+
+	private static Method findMethod(Class<?> type, String name) {
+		for (Method candidate : type.getMethods()) {
+			if (candidate.getName().equals(name)) {
+				return candidate;
+			}
+		}
+		return null;
 	}
 
 	private String resolveMainClass() {

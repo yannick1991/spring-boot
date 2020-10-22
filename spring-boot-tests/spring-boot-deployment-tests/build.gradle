@@ -6,6 +6,12 @@ plugins {
 
 description = "Spring Boot Deployment Tests"
 
+configurations {
+	providedRuntime {
+		extendsFrom dependencyManagement
+	}
+}
+
 dependencies {
 	implementation(project(":spring-boot-project:spring-boot-starters:spring-boot-starter-web")) {
 		exclude group: "org.hibernate.validator"
@@ -25,4 +31,8 @@ dependencies {
 
 intTest {
 	dependsOn war
+}
+
+war {
+	archiveVersion = ''
 }

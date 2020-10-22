@@ -31,10 +31,10 @@ import org.springframework.util.ObjectUtils;
  *
  * @author Eddú Meléndez
  * @author Edson Chávez
- * @since 2.3.0
- * @see Period
+ * @see PeriodFormat
+ * @see PeriodUnit
  */
-public class PeriodToStringConverter implements GenericConverter {
+final class PeriodToStringConverter implements GenericConverter {
 
 	@Override
 	public Set<ConvertiblePair> getConvertibleTypes() {

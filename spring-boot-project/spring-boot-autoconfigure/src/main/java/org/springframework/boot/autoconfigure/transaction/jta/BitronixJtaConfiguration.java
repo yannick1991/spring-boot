@@ -34,13 +34,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jdbc.XADataSourceWrapper;
 import org.springframework.boot.jms.XAConnectionFactoryWrapper;
-import org.springframework.boot.jta.bitronix.BitronixDependentBeanFactoryPostProcessor;
-import org.springframework.boot.jta.bitronix.BitronixXAConnectionFactoryWrapper;
-import org.springframework.boot.jta.bitronix.BitronixXADataSourceWrapper;
 import org.springframework.boot.system.ApplicationHome;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.jta.JtaTransactionManager;
 import org.springframework.util.StringUtils;
 
@@ -57,7 +53,7 @@ import org.springframework.util.StringUtils;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(JtaProperties.class)
 @ConditionalOnClass({ JtaTransactionManager.class, BitronixContext.class })
-@ConditionalOnMissingBean(PlatformTransactionManager.class)
+@ConditionalOnMissingBean(org.springframework.transaction.TransactionManager.class)
 class BitronixJtaConfiguration {
 
 	@Bean
@@ -92,14 +88,14 @@ class BitronixJtaConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean(XADataSourceWrapper.class)
-	BitronixXADataSourceWrapper xaDataSourceWrapper() {
-		return new BitronixXADataSourceWrapper();
+	org.springframework.boot.jta.bitronix.BitronixXADataSourceWrapper xaDataSourceWrapper() {
+		return new org.springframework.boot.jta.bitronix.BitronixXADataSourceWrapper();
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
-	static BitronixDependentBeanFactoryPostProcessor bitronixDependentBeanFactoryPostProcessor() {
-		return new BitronixDependentBeanFactoryPostProcessor();
+	static org.springframework.boot.jta.bitronix.BitronixDependentBeanFactoryPostProcessor bitronixDependentBeanFactoryPostProcessor() {
+		return new org.springframework.boot.jta.bitronix.BitronixDependentBeanFactoryPostProcessor();
 	}
 
 	@Bean
@@ -116,8 +112,8 @@ class BitronixJtaConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean(XAConnectionFactoryWrapper.class)
-		BitronixXAConnectionFactoryWrapper xaConnectionFactoryWrapper() {
-			return new BitronixXAConnectionFactoryWrapper();
+		org.springframework.boot.jta.bitronix.BitronixXAConnectionFactoryWrapper xaConnectionFactoryWrapper() {
+			return new org.springframework.boot.jta.bitronix.BitronixXAConnectionFactoryWrapper();
 		}
 
 	}

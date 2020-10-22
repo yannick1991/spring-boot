@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  * Tests for {@link ValueObjectBinder}.
  *
  * @author Madhura Bhave
+ * @author Phillip Webb
  */
 class ValueObjectBinderTests {
 
@@ -120,6 +121,18 @@ class ValueObjectBinderTests {
 		this.sources.add(source);
 		boolean bound = this.binder.bind("foo", Bindable.of(DefaultConstructorBean.class)).isBound();
 		assertThat(bound).isFalse();
+	}
+
+	@Test
+	void bindToClassWithMultipleConstructorsWhenOnlyOneIsNotPrivateShouldBind() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.int-value", "12");
+		this.sources.add(source);
+		MultipleConstructorsOnlyOneNotPrivateBean bean = this.binder
+				.bind("foo", Bindable.of(MultipleConstructorsOnlyOneNotPrivateBean.class)).get();
+		bean = bean.withString("test");
+		assertThat(bean.getIntValue()).isEqualTo(12);
+		assertThat(bean.getStringValue()).isEqualTo("test");
 	}
 
 	@Test
@@ -332,6 +345,16 @@ class ValueObjectBinderTests {
 		assertThat(bound.getPath()).isEqualTo(Paths.get("default_value"));
 	}
 
+	@Test
+	void bindToAnnotationNamedParameter() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("test.import", "test");
+		this.sources.add(source);
+		Bindable<NamedParameter> target = Bindable.of(NamedParameter.class);
+		NamedParameter bound = this.binder.bindOrCreate("test", target);
+		assertThat(bound.getImportName()).isEqualTo("test");
+	}
+
 	private void noConfigurationProperty(BindException ex) {
 		assertThat(ex.getProperty()).isNull();
 	}
@@ -401,6 +424,35 @@ class ValueObjectBinderTests {
 
 		int getIntValue() {
 			return this.intValue;
+		}
+
+	}
+
+	static class MultipleConstructorsOnlyOneNotPrivateBean {
+
+		private final int intValue;
+
+		private final String stringValue;
+
+		MultipleConstructorsOnlyOneNotPrivateBean(int intValue) {
+			this(intValue, 23L, "hello");
+		}
+
+		private MultipleConstructorsOnlyOneNotPrivateBean(int intValue, long longValue, String stringValue) {
+			this.intValue = intValue;
+			this.stringValue = stringValue;
+		}
+
+		int getIntValue() {
+			return this.intValue;
+		}
+
+		String getStringValue() {
+			return this.stringValue;
+		}
+
+		MultipleConstructorsOnlyOneNotPrivateBean withString(String stringValue) {
+			return new MultipleConstructorsOnlyOneNotPrivateBean(this.intValue, 0, stringValue);
 		}
 
 	}
@@ -726,6 +778,20 @@ class ValueObjectBinderTests {
 
 		Path getPath() {
 			return this.path;
+		}
+
+	}
+
+	static class NamedParameter {
+
+		private final String importName;
+
+		NamedParameter(@Name("import") String importName) {
+			this.importName = importName;
+		}
+
+		String getImportName() {
+			return this.importName;
 		}
 
 	}

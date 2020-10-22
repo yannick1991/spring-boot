@@ -23,7 +23,8 @@
 						</goals>
 						<configuration>
 							<image>
-								<builder>gcr.io/paketo-buildpacks/builder:full-cf-platform-api-0.3</builder>
+								<builder>paketobuildpacks/builder:full</builder>
+								<runImage>paketobuildpacks/run:full-cnb</runImage>
 							</image>
 						</configuration>
 					</execution>

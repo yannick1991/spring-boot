@@ -80,10 +80,17 @@ public class CassandraAutoConfiguration {
 	public CqlSessionBuilder cassandraSessionBuilder(CassandraProperties properties,
 			DriverConfigLoader driverConfigLoader, ObjectProvider<CqlSessionBuilderCustomizer> builderCustomizers) {
 		CqlSessionBuilder builder = CqlSession.builder().withConfigLoader(driverConfigLoader);
+		configureAuthentication(properties, builder);
 		configureSsl(properties, builder);
 		builder.withKeyspace(properties.getKeyspaceName());
 		builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return builder;
+	}
+
+	private void configureAuthentication(CassandraProperties properties, CqlSessionBuilder builder) {
+		if (properties.getUsername() != null) {
+			builder.withAuthCredentials(properties.getUsername(), properties.getPassword());
+		}
 	}
 
 	private void configureSsl(CassandraProperties properties, CqlSessionBuilder builder) {
@@ -139,11 +146,11 @@ public class CassandraAutoConfiguration {
 	}
 
 	private void mapPoolingOptions(CassandraProperties properties, CassandraDriverOptions options) {
-		PropertyMapper map = PropertyMapper.get();
+		PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 		CassandraProperties.Pool poolProperties = properties.getPool();
-		map.from(poolProperties::getIdleTimeout).whenNonNull().asInt(Duration::getSeconds)
+		map.from(poolProperties::getIdleTimeout).asInt(Duration::toMillis)
 				.to((idleTimeout) -> options.add(DefaultDriverOption.HEARTBEAT_TIMEOUT, idleTimeout));
-		map.from(poolProperties::getHeartbeatInterval).whenNonNull().asInt(Duration::getSeconds)
+		map.from(poolProperties::getHeartbeatInterval).asInt(Duration::toMillis)
 				.to((heartBeatInterval) -> options.add(DefaultDriverOption.HEARTBEAT_INTERVAL, heartBeatInterval));
 	}
 

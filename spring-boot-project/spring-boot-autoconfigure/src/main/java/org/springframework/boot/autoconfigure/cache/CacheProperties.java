@@ -257,6 +257,11 @@ public class CacheProperties {
 		 */
 		private boolean useKeyPrefix = true;
 
+		/**
+		 * Whether to enable cache statistics.
+		 */
+		private boolean enableStatistics;
+
 		public Duration getTimeToLive() {
 			return this.timeToLive;
 		}
@@ -287,6 +292,14 @@ public class CacheProperties {
 
 		public void setUseKeyPrefix(boolean useKeyPrefix) {
 			this.useKeyPrefix = useKeyPrefix;
+		}
+
+		public boolean isEnableStatistics() {
+			return this.enableStatistics;
+		}
+
+		public void setEnableStatistics(boolean enableStatistics) {
+			this.enableStatistics = enableStatistics;
 		}
 
 	}

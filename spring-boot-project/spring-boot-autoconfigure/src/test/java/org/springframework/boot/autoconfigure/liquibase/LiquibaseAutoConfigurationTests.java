@@ -37,6 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.boot.DefaultBootstrapContext;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
@@ -78,8 +79,8 @@ class LiquibaseAutoConfigurationTests {
 
 	@BeforeEach
 	void init() {
-		new LiquibaseServiceLocatorApplicationListener()
-				.onApplicationEvent(new ApplicationStartingEvent(new SpringApplication(Object.class), new String[0]));
+		new LiquibaseServiceLocatorApplicationListener().onApplicationEvent(new ApplicationStartingEvent(
+				new DefaultBootstrapContext(), new SpringApplication(Object.class), new String[0]));
 	}
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
@@ -104,8 +105,8 @@ class LiquibaseAutoConfigurationTests {
 	@Test
 	void createsDataSourceWhenSpringJdbcOnlyAvailableWithNoDataSourceBeanAndLiquibaseUrl() {
 		this.contextRunner.withPropertyValues("spring.liquibase.url:jdbc:hsqldb:mem:liquibase")
-				.withClassLoader(
-						new FilteredClassLoader("org.apache.tomcat", "com.zaxxer.hikari", "org.apache.commons.dbcp2"))
+				.withClassLoader(new FilteredClassLoader("org.apache.tomcat", "com.zaxxer.hikari",
+						"org.apache.commons.dbcp2", "oracle.ucp.jdbc"))
 				.run(assertLiquibase((liquibase) -> {
 					DataSource dataSource = liquibase.getDataSource();
 					assertThat(dataSource).isInstanceOf(SimpleDriverDataSource.class);

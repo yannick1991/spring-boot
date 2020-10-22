@@ -48,7 +48,7 @@ public enum PeriodStyle {
 				}
 				Matcher matcher = matcher(value);
 				Assert.state(matcher.matches(), "Does not match simple period pattern");
-				Assert.isTrue(hasAtLeastOneGroupValue(matcher), "'" + value + "' is not a valid simple period");
+				Assert.isTrue(hasAtLeastOneGroupValue(matcher), () -> "'" + value + "' is not a valid simple period");
 				int years = parseInt(matcher, 1);
 				int months = parseInt(matcher, 2);
 				int weeks = parseInt(matcher, 3);
@@ -176,7 +176,8 @@ public enum PeriodStyle {
 	 * Detect the style then parse the value to return a period.
 	 * @param value the value to parse
 	 * @return the parsed period
-	 * @throws IllegalStateException if the value is not a known style or cannot be parsed
+	 * @throws IllegalArgumentException if the value is not a known style or cannot be
+	 * parsed
 	 */
 	public static Period detectAndParse(String value) {
 		return detectAndParse(value, null);
@@ -188,7 +189,8 @@ public enum PeriodStyle {
 	 * @param unit the period unit to use if the value doesn't specify one ({@code null}
 	 * will default to ms)
 	 * @return the parsed period
-	 * @throws IllegalStateException if the value is not a known style or cannot be parsed
+	 * @throws IllegalArgumentException if the value is not a known style or cannot be
+	 * parsed
 	 */
 	public static Period detectAndParse(String value, ChronoUnit unit) {
 		return detect(value).parse(value, unit);
@@ -198,7 +200,7 @@ public enum PeriodStyle {
 	 * Detect the style from the given source value.
 	 * @param value the source value
 	 * @return the period style
-	 * @throws IllegalStateException if the value is not a known style
+	 * @throws IllegalArgumentException if the value is not a known style
 	 */
 	public static PeriodStyle detect(String value) {
 		Assert.notNull(value, "Value must not be null");
@@ -210,12 +212,17 @@ public enum PeriodStyle {
 		throw new IllegalArgumentException("'" + value + "' is not a valid period");
 	}
 
-	enum Unit {
+	private enum Unit {
 
 		/**
 		 * Days, represented by suffix {@code d}.
 		 */
 		DAYS(ChronoUnit.DAYS, "d", Period::getDays, Period::ofDays),
+
+		/**
+		 * Weeks, represented by suffix {@code w}.
+		 */
+		WEEKS(ChronoUnit.WEEKS, "w", null, Period::ofWeeks),
 
 		/**
 		 * Months, represented by suffix {@code m}.
@@ -251,15 +258,16 @@ public enum PeriodStyle {
 			return intValue(value) + this.suffix;
 		}
 
-		public boolean isZero(Period value) {
+		private boolean isZero(Period value) {
 			return intValue(value) == 0;
 		}
 
-		public int intValue(Period value) {
+		private int intValue(Period value) {
+			Assert.notNull(this.intValue, () -> "intValue cannot be extracted from " + this.name());
 			return this.intValue.apply(value);
 		}
 
-		public static Unit fromChronoUnit(ChronoUnit chronoUnit) {
+		private static Unit fromChronoUnit(ChronoUnit chronoUnit) {
 			if (chronoUnit == null) {
 				return Unit.DAYS;
 			}

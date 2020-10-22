@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.boot.maven;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -28,10 +29,11 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.plugin.logging.Log;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.boot.loader.tools.Library;
 import org.springframework.boot.loader.tools.LibraryCallback;
@@ -48,6 +50,7 @@ import static org.mockito.Mockito.verify;
  *
  * @author Phillip Webb
  */
+@ExtendWith(MockitoExtension.class)
 class ArtifactsLibrariesTests {
 
 	@Mock
@@ -70,17 +73,15 @@ class ArtifactsLibrariesTests {
 
 	@BeforeEach
 	void setup() {
-		MockitoAnnotations.initMocks(this);
 		this.artifacts = Collections.singleton(this.artifact);
 		this.libs = new ArtifactsLibraries(this.artifacts, null, mock(Log.class));
-		given(this.artifact.getFile()).willReturn(this.file);
 		given(this.artifactHandler.getExtension()).willReturn("jar");
-		given(this.artifact.getArtifactHandler()).willReturn(this.artifactHandler);
 	}
 
 	@Test
 	void callbackForJars() throws Exception {
-		given(this.artifact.getType()).willReturn("jar");
+		given(this.artifact.getFile()).willReturn(this.file);
+		given(this.artifact.getArtifactHandler()).willReturn(this.artifactHandler);
 		given(this.artifact.getScope()).willReturn("compile");
 		this.libs.doWithLibraries(this.callback);
 		verify(this.callback).library(this.libraryCaptor.capture());
@@ -92,9 +93,10 @@ class ArtifactsLibrariesTests {
 
 	@Test
 	void callbackWithUnpack() throws Exception {
+		given(this.artifact.getFile()).willReturn(this.file);
+		given(this.artifact.getArtifactHandler()).willReturn(this.artifactHandler);
 		given(this.artifact.getGroupId()).willReturn("gid");
 		given(this.artifact.getArtifactId()).willReturn("aid");
-		given(this.artifact.getType()).willReturn("jar");
 		given(this.artifact.getScope()).willReturn("compile");
 		Dependency unpack = new Dependency();
 		unpack.setGroupId("gid");
@@ -109,14 +111,12 @@ class ArtifactsLibrariesTests {
 	void renamesDuplicates() throws Exception {
 		Artifact artifact1 = mock(Artifact.class);
 		Artifact artifact2 = mock(Artifact.class);
-		given(artifact1.getType()).willReturn("jar");
 		given(artifact1.getScope()).willReturn("compile");
 		given(artifact1.getGroupId()).willReturn("g1");
 		given(artifact1.getArtifactId()).willReturn("artifact");
 		given(artifact1.getBaseVersion()).willReturn("1.0");
 		given(artifact1.getFile()).willReturn(new File("a"));
 		given(artifact1.getArtifactHandler()).willReturn(this.artifactHandler);
-		given(artifact2.getType()).willReturn("jar");
 		given(artifact2.getScope()).willReturn("compile");
 		given(artifact2.getGroupId()).willReturn("g2");
 		given(artifact2.getArtifactId()).willReturn("artifact");
@@ -129,6 +129,19 @@ class ArtifactsLibrariesTests {
 		verify(this.callback, times(2)).library(this.libraryCaptor.capture());
 		assertThat(this.libraryCaptor.getAllValues().get(0).getName()).isEqualTo("g1-artifact-1.0.jar");
 		assertThat(this.libraryCaptor.getAllValues().get(1).getName()).isEqualTo("g2-artifact-1.0.jar");
+	}
+
+	@Test
+	void libraryCoordinatesVersionUsesBaseVersionOfArtifact() throws IOException {
+		Artifact snapshotArtifact = mock(Artifact.class);
+		given(snapshotArtifact.getScope()).willReturn("compile");
+		given(snapshotArtifact.getArtifactId()).willReturn("artifact");
+		given(snapshotArtifact.getBaseVersion()).willReturn("1.0-SNAPSHOT");
+		given(snapshotArtifact.getFile()).willReturn(new File("a"));
+		given(snapshotArtifact.getArtifactHandler()).willReturn(this.artifactHandler);
+		this.artifacts = Collections.singleton(snapshotArtifact);
+		new ArtifactsLibraries(this.artifacts, null, mock(Log.class)).doWithLibraries(
+				(library) -> assertThat(library.getCoordinates().getVersion()).isEqualTo("1.0-SNAPSHOT"));
 	}
 
 }

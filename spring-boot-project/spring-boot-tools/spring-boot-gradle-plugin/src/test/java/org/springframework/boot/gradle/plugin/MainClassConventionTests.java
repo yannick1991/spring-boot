@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class MainClassConventionTests {
 	void javaApplicationExtensionMainClassNameIsUsed() throws Exception {
 		this.project.getPlugins().apply(ApplicationPlugin.class);
 		JavaApplication extension = this.project.getExtensions().findByType(JavaApplication.class);
-		extension.setMainClassName("com.example.MainClass");
+		extension.getMainClass().set("com.example.MainClass");
 		assertThat(this.convention.call()).isEqualTo("com.example.MainClass");
 	}
 
@@ -63,7 +63,7 @@ class MainClassConventionTests {
 	void springBootExtensionMainClassNameIsUsed() throws Exception {
 		SpringBootExtension extension = this.project.getExtensions().create("springBoot", SpringBootExtension.class,
 				this.project);
-		extension.setMainClassName("com.example.MainClass");
+		extension.getMainClass().set("com.example.MainClass");
 		assertThat(this.convention.call()).isEqualTo("com.example.MainClass");
 	}
 
@@ -71,10 +71,10 @@ class MainClassConventionTests {
 	void springBootExtensionMainClassNameIsUsedInPreferenceToJavaApplicationExtensionMainClassName() throws Exception {
 		this.project.getPlugins().apply(ApplicationPlugin.class);
 		JavaApplication javaApplication = this.project.getExtensions().findByType(JavaApplication.class);
-		javaApplication.setMainClassName("com.example.JavaApplicationMainClass");
+		javaApplication.getMainClass().set("com.example.JavaApplicationMainClass");
 		SpringBootExtension extension = this.project.getExtensions().create("springBoot", SpringBootExtension.class,
 				this.project);
-		extension.setMainClassName("com.example.SpringBootExtensionMainClass");
+		extension.getMainClass().set("com.example.SpringBootExtensionMainClass");
 		assertThat(this.convention.call()).isEqualTo("com.example.SpringBootExtensionMainClass");
 	}
 

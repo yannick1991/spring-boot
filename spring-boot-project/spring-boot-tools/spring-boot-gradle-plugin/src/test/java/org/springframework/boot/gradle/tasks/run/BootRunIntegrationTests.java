@@ -17,15 +17,19 @@
 package org.springframework.boot.gradle.tasks.run;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.function.Consumer;
+import java.util.jar.Attributes;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 import org.gradle.api.JavaVersion;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.TaskOutcome;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-import org.springframework.boot.gradle.junit.GradleCompatibilityExtension;
+import org.springframework.boot.gradle.junit.GradleCompatibility;
 import org.springframework.boot.gradle.testkit.GradleBuild;
 import org.springframework.util.FileSystemUtils;
 
@@ -36,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Andy Wilkinson
  */
-@ExtendWith(GradleCompatibilityExtension.class)
+@GradleCompatibility
 class BootRunIntegrationTests {
 
 	GradleBuild gradleBuild;
@@ -120,6 +124,17 @@ class BootRunIntegrationTests {
 		}
 	}
 
+	@TestTemplate
+	void jarTypeFilteringIsAppliedToTheClasspath() throws IOException {
+		copyClasspathApplication();
+		File flatDirRepository = new File(this.gradleBuild.getProjectDir(), "repository");
+		createDependenciesStarterJar(new File(flatDirRepository, "starter.jar"));
+		createStandardJar(new File(flatDirRepository, "standard.jar"));
+		BuildResult result = this.gradleBuild.build("bootRun");
+		assertThat(result.task(":bootRun").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
+		assertThat(result.getOutput()).contains("standard.jar").doesNotContain("starter.jar");
+	}
+
 	private void copyClasspathApplication() throws IOException {
 		copyApplication("classpath");
 	}
@@ -136,6 +151,24 @@ class BootRunIntegrationTests {
 
 	private String canonicalPathOf(String path) throws IOException {
 		return new File(this.gradleBuild.getProjectDir(), path).getCanonicalPath();
+	}
+
+	private void createStandardJar(File location) throws IOException {
+		createJar(location, (attributes) -> {
+		});
+	}
+
+	private void createDependenciesStarterJar(File location) throws IOException {
+		createJar(location, (attributes) -> attributes.putValue("Spring-Boot-Jar-Type", "dependencies-starter"));
+	}
+
+	private void createJar(File location, Consumer<Attributes> attributesConfigurer) throws IOException {
+		location.getParentFile().mkdirs();
+		Manifest manifest = new Manifest();
+		Attributes attributes = manifest.getMainAttributes();
+		attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0");
+		attributesConfigurer.accept(attributes);
+		new JarOutputStream(new FileOutputStream(location), manifest).close();
 	}
 
 }

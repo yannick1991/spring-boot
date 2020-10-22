@@ -58,12 +58,12 @@ final class GracefulShutdown {
 	private void doShutdown(GracefulShutdownCallback callback, DisposableServer server) {
 		this.shuttingDown = true;
 		try {
-			server.disposeNow(Duration.ofMillis(Long.MAX_VALUE));
+			server.disposeNow(Duration.ofNanos(Long.MAX_VALUE));
 			logger.info("Graceful shutdown complete");
 			callback.shutdownComplete(GracefulShutdownResult.IDLE);
 		}
 		catch (Exception ex) {
-			logger.info("Graceful shutdown aborted with one or more active requests");
+			logger.info("Graceful shutdown aborted with one or more requests still active");
 			callback.shutdownComplete(GracefulShutdownResult.REQUESTS_ACTIVE);
 		}
 		finally {

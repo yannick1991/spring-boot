@@ -38,7 +38,6 @@ import org.springframework.boot.rsocket.context.RSocketServerBootstrap;
 import org.springframework.boot.rsocket.netty.NettyRSocketServerFactory;
 import org.springframework.boot.rsocket.server.RSocketServerCustomizer;
 import org.springframework.boot.rsocket.server.RSocketServerFactory;
-import org.springframework.boot.rsocket.server.ServerRSocketFactoryProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -70,12 +69,10 @@ public class RSocketServerAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		@SuppressWarnings("deprecation")
 		RSocketWebSocketNettyRouteProvider rSocketWebsocketRouteProvider(RSocketProperties properties,
-				RSocketMessageHandler messageHandler, ObjectProvider<ServerRSocketFactoryProcessor> processors,
-				ObjectProvider<RSocketServerCustomizer> customizers) {
+				RSocketMessageHandler messageHandler, ObjectProvider<RSocketServerCustomizer> customizers) {
 			return new RSocketWebSocketNettyRouteProvider(properties.getServer().getMappingPath(),
-					messageHandler.responder(), processors.orderedStream(), customizers.orderedStream());
+					messageHandler.responder(), customizers.orderedStream());
 		}
 
 	}
@@ -92,9 +89,7 @@ public class RSocketServerAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		@SuppressWarnings("deprecation")
 		RSocketServerFactory rSocketServerFactory(RSocketProperties properties, ReactorResourceFactory resourceFactory,
-				ObjectProvider<ServerRSocketFactoryProcessor> processors,
 				ObjectProvider<RSocketServerCustomizer> customizers) {
 			NettyRSocketServerFactory factory = new NettyRSocketServerFactory();
 			factory.setResourceFactory(resourceFactory);
@@ -102,8 +97,9 @@ public class RSocketServerAutoConfiguration {
 			PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 			map.from(properties.getServer().getAddress()).to(factory::setAddress);
 			map.from(properties.getServer().getPort()).to(factory::setPort);
+			map.from(properties.getServer().getFragmentSize()).to(factory::setFragmentSize);
+			map.from(properties.getServer().getSsl()).to(factory::setSsl);
 			factory.setRSocketServerCustomizers(customizers.orderedStream().collect(Collectors.toList()));
-			factory.setSocketFactoryProcessors(processors.orderedStream().collect(Collectors.toList()));
 			return factory;
 		}
 

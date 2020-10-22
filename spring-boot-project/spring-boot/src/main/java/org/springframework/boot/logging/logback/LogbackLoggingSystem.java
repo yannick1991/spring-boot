@@ -47,10 +47,13 @@ import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggerConfiguration;
 import org.springframework.boot.logging.LoggingInitializationContext;
 import org.springframework.boot.logging.LoggingSystem;
-import org.springframework.boot.logging.LoggingSystemProperties;
+import org.springframework.boot.logging.LoggingSystemFactory;
 import org.springframework.boot.logging.Slf4JLoggingSystem;
-import org.springframework.core.env.Environment;
+import org.springframework.core.Ordered;
+import org.springframework.core.SpringProperties;
+import org.springframework.core.annotation.Order;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
@@ -64,6 +67,9 @@ import org.springframework.util.StringUtils;
  * @since 1.0.0
  */
 public class LogbackLoggingSystem extends Slf4JLoggingSystem {
+
+	// Static final field to facilitate code removal by Graal
+	private static final boolean XML_ENABLED = !SpringProperties.getFlag("spring.xml.ignore");
 
 	private static final String CONFIGURATION_FILE_PROPERTY = "logback.configurationFile";
 
@@ -134,13 +140,6 @@ public class LogbackLoggingSystem extends Slf4JLoggingSystem {
 		}
 		LogbackConfigurator configurator = debug ? new DebugLogbackConfigurator(context)
 				: new LogbackConfigurator(context);
-		Environment environment = initializationContext.getEnvironment();
-		context.putProperty(LoggingSystemProperties.LOG_LEVEL_PATTERN,
-				environment.resolvePlaceholders("${logging.pattern.level:${LOG_LEVEL_PATTERN:%5p}}"));
-		context.putProperty(LoggingSystemProperties.LOG_DATEFORMAT_PATTERN, environment.resolvePlaceholders(
-				"${logging.pattern.dateformat:${LOG_DATEFORMAT_PATTERN:yyyy-MM-dd HH:mm:ss.SSS}}"));
-		context.putProperty(LoggingSystemProperties.ROLLING_FILE_NAME_PATTERN, environment
-				.resolvePlaceholders("${logging.pattern.rolling-file-name:${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}"));
 		new DefaultLogbackConfiguration(initializationContext, logFile).apply(configurator);
 		context.setPackagingDataEnabled(true);
 	}
@@ -172,7 +171,7 @@ public class LogbackLoggingSystem extends Slf4JLoggingSystem {
 
 	private void configureByResourceUrl(LoggingInitializationContext initializationContext, LoggerContext loggerContext,
 			URL url) throws JoranException {
-		if (url.toString().endsWith("xml")) {
+		if (XML_ENABLED && url.toString().endsWith("xml")) {
 			JoranConfigurator configurator = new SpringBootJoranConfigurator(initializationContext);
 			configurator.setContext(loggerContext);
 			configurator.doConfigure(url);
@@ -282,7 +281,7 @@ public class LogbackLoggingSystem extends Slf4JLoggingSystem {
 	private LoggerContext getLoggerContext() {
 		ILoggerFactory factory = StaticLoggerBinder.getSingleton().getLoggerFactory();
 		Assert.isInstanceOf(LoggerContext.class, factory,
-				String.format(
+				() -> String.format(
 						"LoggerFactory is not a Logback LoggerContext but Logback is on "
 								+ "the classpath. Either remove Logback or the competing "
 								+ "implementation (%s loaded from %s). If you are using "
@@ -323,6 +322,22 @@ public class LogbackLoggingSystem extends Slf4JLoggingSystem {
 		@Override
 		public void run() {
 			getLoggerContext().stop();
+		}
+
+	}
+
+	/**
+	 * {@link LoggingSystemFactory} that returns {@link LogbackLoggingSystem} if possible.
+	 */
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public static class Factory implements LoggingSystemFactory {
+
+		@Override
+		public LoggingSystem getLoggingSystem(ClassLoader classLoader) {
+			if (ClassUtils.isPresent("ch.qos.logback.core.Appender", classLoader)) {
+				return new LogbackLoggingSystem(classLoader);
+			}
+			return null;
 		}
 
 	}

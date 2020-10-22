@@ -211,6 +211,18 @@ class ConfigurationPropertyNameTests {
 	}
 
 	@Test
+	void ofIfValidWhenNameIsValidReturnsName() {
+		ConfigurationPropertyName name = ConfigurationPropertyName.ofIfValid("spring.bo-ot");
+		assertThat(name).hasToString("spring.bo-ot");
+	}
+
+	@Test
+	void ofIfValidWhenNameIsNotValidReturnsNull() {
+		ConfigurationPropertyName name = ConfigurationPropertyName.ofIfValid("spring.bo!oot");
+		assertThat(name).isNull();
+	}
+
+	@Test
 	void adaptWhenNameIsNullShouldThrowException() {
 		assertThatIllegalArgumentException().isThrownBy(() -> ConfigurationPropertyName.adapt(null, '.'))
 				.withMessageContaining("Name must not be null");
@@ -655,6 +667,16 @@ class ConfigurationPropertyNameTests {
 		int hashCode = name.hashCode();
 		// hasFieldOrPropertyWithValue would lookup for `hashCode()`.
 		assertThat(ReflectionTestUtils.getField(name, "hashCode")).isEqualTo(hashCode);
+	}
+
+	@Test
+	void hasIndexedElementWhenHasIndexedElementReturnsTrue() throws Exception {
+		assertThat(ConfigurationPropertyName.of("foo[bar]").hasIndexedElement()).isTrue();
+	}
+
+	@Test
+	void hasIndexedElementWhenHasNoIndexedElementReturnsFalse() throws Exception {
+		assertThat(ConfigurationPropertyName.of("foo.bar").hasIndexedElement()).isFalse();
 	}
 
 }

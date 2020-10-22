@@ -40,6 +40,7 @@ import org.springframework.boot.buildpack.platform.io.Content;
 import org.springframework.boot.buildpack.platform.io.IOConsumer;
 import org.springframework.boot.buildpack.platform.json.SharedObjectMapper;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 /**
  * Abstract base class for {@link HttpTransport} implementations backed by a
@@ -50,6 +51,8 @@ import org.springframework.util.Assert;
  * @author Scott Frederick
  */
 abstract class HttpClientTransport implements HttpTransport {
+
+	static final String REGISTRY_AUTH_HEADER = "X-Registry-Auth";
 
 	private final CloseableHttpClient client;
 
@@ -80,6 +83,17 @@ abstract class HttpClientTransport implements HttpTransport {
 	@Override
 	public Response post(URI uri) {
 		return execute(new HttpPost(uri));
+	}
+
+	/**
+	 * Perform a HTTP POST operation.
+	 * @param uri the destination URI
+	 * @param registryAuth registry authentication credentials
+	 * @return the operation response
+	 */
+	@Override
+	public Response post(URI uri, String registryAuth) {
+		return execute(new HttpPost(uri), registryAuth);
 	}
 
 	/**
@@ -123,6 +137,13 @@ abstract class HttpClientTransport implements HttpTransport {
 		return execute(request);
 	}
 
+	private Response execute(HttpEntityEnclosingRequestBase request, String registryAuth) {
+		if (StringUtils.hasText(registryAuth)) {
+			request.setHeader(REGISTRY_AUTH_HEADER, registryAuth);
+		}
+		return execute(request);
+	}
+
 	private Response execute(HttpUriRequest request) {
 		try {
 			CloseableHttpResponse response = this.client.execute(this.host, request);
@@ -131,19 +152,30 @@ abstract class HttpClientTransport implements HttpTransport {
 			HttpEntity entity = response.getEntity();
 			if (statusCode >= 400 && statusCode <= 500) {
 				Errors errors = (statusCode != 500) ? getErrorsFromResponse(entity) : null;
+				Message message = getMessageFromResponse(entity);
 				throw new DockerEngineException(this.host.toHostString(), request.getURI(), statusCode,
-						statusLine.getReasonPhrase(), errors);
+						statusLine.getReasonPhrase(), errors, message);
 			}
 			return new HttpClientResponse(response);
 		}
 		catch (IOException ex) {
-			throw new DockerEngineException(this.host.toHostString(), request.getURI(), 500, ex.getMessage(), null);
+			throw new DockerConnectionException(this.host.toHostString(), ex);
 		}
 	}
 
 	private Errors getErrorsFromResponse(HttpEntity entity) {
 		try {
 			return SharedObjectMapper.get().readValue(entity.getContent(), Errors.class);
+		}
+		catch (IOException ex) {
+			return null;
+		}
+	}
+
+	private Message getMessageFromResponse(HttpEntity entity) {
+		try {
+			return (entity.getContent() != null)
+					? SharedObjectMapper.get().readValue(entity.getContent(), Message.class) : null;
 		}
 		catch (IOException ex) {
 			return null;

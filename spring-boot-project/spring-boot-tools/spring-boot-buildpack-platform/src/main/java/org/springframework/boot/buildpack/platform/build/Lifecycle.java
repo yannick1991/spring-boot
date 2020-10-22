@@ -42,13 +42,13 @@ class Lifecycle implements Closeable {
 
 	private static final LifecycleVersion LOGGING_MINIMUM_VERSION = LifecycleVersion.parse("0.0.5");
 
+	private static final String PLATFORM_API_VERSION_KEY = "CNB_PLATFORM_API";
+
 	private final BuildLog log;
 
 	private final DockerApi docker;
 
 	private final BuildRequest request;
-
-	private final ImageReference runImageReference;
 
 	private final EphemeralBuilder builder;
 
@@ -73,23 +73,19 @@ class Lifecycle implements Closeable {
 	 * @param log build output log
 	 * @param docker the Docker API
 	 * @param request the request to process
-	 * @param runImageReference a reference to run image that should be used
 	 * @param builder the ephemeral builder used to run the phases
 	 */
-	Lifecycle(BuildLog log, DockerApi docker, BuildRequest request, ImageReference runImageReference,
-			EphemeralBuilder builder) {
+	Lifecycle(BuildLog log, DockerApi docker, BuildRequest request, EphemeralBuilder builder) {
 		this.log = log;
 		this.docker = docker;
 		this.request = request;
-		this.runImageReference = runImageReference;
 		this.builder = builder;
 		this.lifecycleVersion = LifecycleVersion.parse(builder.getBuilderMetadata().getLifecycle().getVersion());
-		this.platformVersion = ApiVersion.parse(builder.getBuilderMetadata().getLifecycle().getApi().getPlatform());
+		this.platformVersion = getPlatformVersion(builder.getBuilderMetadata().getLifecycle());
 		this.layersVolume = createRandomVolumeName("pack-layers-");
 		this.applicationVolume = createRandomVolumeName("pack-app-");
 		this.buildCacheVolume = createCacheVolumeName(request, ".build");
 		this.launchCacheVolume = createCacheVolumeName(request, ".launch");
-		checkPlatformVersion(this.platformVersion);
 	}
 
 	protected VolumeName createRandomVolumeName(String prefix) {
@@ -100,8 +96,13 @@ class Lifecycle implements Closeable {
 		return VolumeName.basedOn(request.getName(), ImageReference::toLegacyString, "pack-cache-", suffix, 6);
 	}
 
-	private void checkPlatformVersion(ApiVersion platformVersion) {
-		ApiVersions.SUPPORTED_PLATFORMS.assertSupports(platformVersion);
+	private ApiVersion getPlatformVersion(BuilderMetadata.Lifecycle lifecycle) {
+		if (lifecycle.getApis().getPlatform() != null) {
+			String[] supportedVersions = lifecycle.getApis().getPlatform();
+			return ApiVersions.SUPPORTED_PLATFORMS.findLatestSupported(supportedVersions);
+		}
+		String version = lifecycle.getApi().getPlatform();
+		return ApiVersions.SUPPORTED_PLATFORMS.findLatestSupported(version);
 	}
 
 	/**
@@ -125,7 +126,7 @@ class Lifecycle implements Closeable {
 		phase.withLogLevelArg();
 		phase.withArgs("-app", Directory.APPLICATION);
 		phase.withArgs("-platform", Directory.PLATFORM);
-		phase.withArgs("-run-image", this.runImageReference);
+		phase.withArgs("-run-image", this.request.getRunImage());
 		phase.withArgs("-layers", Directory.LAYERS);
 		phase.withArgs("-cache-dir", Directory.CACHE);
 		phase.withArgs("-launch-cache", Directory.LAUNCH_CACHE);
@@ -133,16 +134,24 @@ class Lifecycle implements Closeable {
 		if (this.request.isCleanCache()) {
 			phase.withArgs("-skip-restore");
 		}
+		if (requiresProcessTypeDefault()) {
+			phase.withArgs("-process-type=web");
+		}
 		phase.withArgs(this.request.getName());
 		phase.withBinds(this.layersVolume, Directory.LAYERS);
 		phase.withBinds(this.applicationVolume, Directory.APPLICATION);
 		phase.withBinds(this.buildCacheVolume, Directory.CACHE);
 		phase.withBinds(this.launchCacheVolume, Directory.LAUNCH_CACHE);
+		phase.withEnv(PLATFORM_API_VERSION_KEY, this.platformVersion.toString());
 		return phase;
 	}
 
 	private boolean isVerboseLogging() {
 		return this.request.isVerboseLogging() && this.lifecycleVersion.isEqualOrGreaterThan(LOGGING_MINIMUM_VERSION);
+	}
+
+	private boolean requiresProcessTypeDefault() {
+		return this.platformVersion.supports(ApiVersion.of(0, 4));
 	}
 
 	private void run(Phase phase) throws IOException {

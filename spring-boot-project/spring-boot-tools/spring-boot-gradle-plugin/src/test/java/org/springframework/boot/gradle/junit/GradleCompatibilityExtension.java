@@ -37,7 +37,7 @@ import org.springframework.boot.gradle.testkit.GradleBuildExtension;
  *
  * @author Andy Wilkinson
  */
-public final class GradleCompatibilityExtension implements TestTemplateInvocationContextProvider {
+final class GradleCompatibilityExtension implements TestTemplateInvocationContextProvider {
 
 	private static final List<String> GRADLE_VERSIONS;
 
@@ -45,10 +45,10 @@ public final class GradleCompatibilityExtension implements TestTemplateInvocatio
 		JavaVersion javaVersion = JavaVersion.current();
 		if (javaVersion.isCompatibleWith(JavaVersion.VERSION_14)
 				|| javaVersion.isCompatibleWith(JavaVersion.VERSION_13)) {
-			GRADLE_VERSIONS = Arrays.asList("6.3", "default");
+			GRADLE_VERSIONS = Arrays.asList("6.3", "6.4.1", "6.5.1", "6.6.1", "default");
 		}
 		else {
-			GRADLE_VERSIONS = Arrays.asList("5.6.4", "6.3", "default");
+			GRADLE_VERSIONS = Arrays.asList("5.6.4", "6.3", "6.4.1", "6.5.1", "6.6.1", "default");
 		}
 	}
 

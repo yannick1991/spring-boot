@@ -24,9 +24,8 @@ import java.util.jar.JarOutputStream;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.TaskOutcome;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-import org.springframework.boot.gradle.junit.GradleCompatibilityExtension;
+import org.springframework.boot.gradle.junit.GradleCompatibility;
 import org.springframework.boot.gradle.testkit.GradleBuild;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Andy Wilkinson
  */
-@ExtendWith(GradleCompatibilityExtension.class)
+@GradleCompatibility
 class JavaPluginActionIntegrationTests {
 
 	GradleBuild gradleBuild;
@@ -144,6 +143,15 @@ class JavaPluginActionIntegrationTests {
 		assertThat(this.gradleBuild
 				.build("configurationExists", "-PconfigurationName=developmentOnly", "-PapplyJavaPlugin").getOutput())
 						.contains("developmentOnly exists = true");
+	}
+
+	@TestTemplate
+	void productionRuntimeClasspathIsConfiguredWithAttributes() {
+		assertThat(this.gradleBuild
+				.build("configurationAttributes", "-PconfigurationName=productionRuntimeClasspath", "-PapplyJavaPlugin")
+				.getOutput()).contains("3 productionRuntimeClasspath attributes:")
+						.contains("org.gradle.usage: java-runtime").contains("org.gradle.libraryelements: jar")
+						.contains("org.gradle.dependency.bundling: external");
 	}
 
 	private void createMinimalMainSource() throws IOException {

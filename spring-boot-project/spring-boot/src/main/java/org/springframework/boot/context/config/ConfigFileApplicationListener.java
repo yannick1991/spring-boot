@@ -42,6 +42,7 @@ import org.apache.commons.logging.Log;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.boot.DefaultPropertiesPropertySource;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationPreparedEvent;
@@ -58,7 +59,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ConfigurationClassPostProcessor;
 import org.springframework.context.event.SmartApplicationListener;
 import org.springframework.core.Ordered;
-import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.MutablePropertySources;
@@ -109,10 +109,10 @@ import org.springframework.util.StringUtils;
  * @author Eddú Meléndez
  * @author Madhura Bhave
  * @since 1.0.0
+ * @deprecated since 2.4.0 in favor of {@link ConfigDataEnvironmentPostProcessor}
  */
+@Deprecated
 public class ConfigFileApplicationListener implements EnvironmentPostProcessor, SmartApplicationListener, Ordered {
-
-	private static final String DEFAULT_PROPERTIES = "defaultProperties";
 
 	// Note the order is from least to most specific (last one wins)
 	private static final String DEFAULT_SEARCH_LOCATIONS = "classpath:/,classpath:/config/,file:./,file:./config/*/,file:./config/";
@@ -164,7 +164,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	 */
 	public static final int DEFAULT_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
 
-	private final DeferredLog logger = new DeferredLog();
+	private final Log logger;
 
 	private static final Resource[] EMPTY_RESOURCES = {};
 
@@ -176,6 +176,14 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	private int order = DEFAULT_ORDER;
 
+	public ConfigFileApplicationListener() {
+		this(new DeferredLog());
+	}
+
+	ConfigFileApplicationListener(Log logger) {
+		this.logger = logger;
+	}
+
 	@Override
 	public boolean supportsEventType(Class<? extends ApplicationEvent> eventType) {
 		return ApplicationEnvironmentPreparedEvent.class.isAssignableFrom(eventType)
@@ -184,35 +192,13 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
-		if (event instanceof ApplicationEnvironmentPreparedEvent) {
-			onApplicationEnvironmentPreparedEvent((ApplicationEnvironmentPreparedEvent) event);
-		}
-		if (event instanceof ApplicationPreparedEvent) {
-			onApplicationPreparedEvent(event);
-		}
-	}
-
-	private void onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent event) {
-		List<EnvironmentPostProcessor> postProcessors = loadPostProcessors();
-		postProcessors.add(this);
-		AnnotationAwareOrderComparator.sort(postProcessors);
-		for (EnvironmentPostProcessor postProcessor : postProcessors) {
-			postProcessor.postProcessEnvironment(event.getEnvironment(), event.getSpringApplication());
-		}
-	}
-
-	List<EnvironmentPostProcessor> loadPostProcessors() {
-		return SpringFactoriesLoader.loadFactories(EnvironmentPostProcessor.class, getClass().getClassLoader());
+		throw new IllegalStateException("ConfigFileApplicationListener [" + getClass().getName()
+				+ "] is deprecated and can only be used as an EnvironmentPostProcessor");
 	}
 
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
 		addPropertySources(environment, application.getResourceLoader());
-	}
-
-	private void onApplicationPreparedEvent(ApplicationEvent event) {
-		this.logger.switchTo(ConfigFileApplicationListener.class);
-		addPostProcessors(((ApplicationPreparedEvent) event).getApplicationContext());
 	}
 
 	/**
@@ -273,7 +259,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	 */
 	private static class PropertySourceOrderingPostProcessor implements BeanFactoryPostProcessor, Ordered {
 
-		private ConfigurableApplicationContext context;
+		private final ConfigurableApplicationContext context;
 
 		PropertySourceOrderingPostProcessor(ConfigurableApplicationContext context) {
 			this.context = context;
@@ -290,10 +276,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		}
 
 		private void reorderSources(ConfigurableEnvironment environment) {
-			PropertySource<?> defaultProperties = environment.getPropertySources().remove(DEFAULT_PROPERTIES);
-			if (defaultProperties != null) {
-				environment.getPropertySources().addLast(defaultProperties);
-			}
+			DefaultPropertiesPropertySource.moveToEnd(environment);
 		}
 
 	}
@@ -326,33 +309,33 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		Loader(ConfigurableEnvironment environment, ResourceLoader resourceLoader) {
 			this.environment = environment;
 			this.placeholdersResolver = new PropertySourcesPlaceholdersResolver(this.environment);
-			this.resourceLoader = (resourceLoader != null) ? resourceLoader
-					: new DefaultResourceLoader(getClass().getClassLoader());
+			this.resourceLoader = (resourceLoader != null) ? resourceLoader : new DefaultResourceLoader(null);
 			this.propertySourceLoaders = SpringFactoriesLoader.loadFactories(PropertySourceLoader.class,
 					getClass().getClassLoader());
 		}
 
 		void load() {
-			FilteredPropertySource.apply(this.environment, DEFAULT_PROPERTIES, LOAD_FILTERED_PROPERTY,
-					(defaultProperties) -> {
-						this.profiles = new LinkedList<>();
-						this.processedProfiles = new LinkedList<>();
-						this.activatedProfiles = false;
-						this.loaded = new LinkedHashMap<>();
-						initializeProfiles();
-						while (!this.profiles.isEmpty()) {
-							Profile profile = this.profiles.poll();
-							if (isDefaultProfile(profile)) {
-								addProfileToEnvironment(profile.getName());
-							}
-							load(profile, this::getPositiveProfileFilter,
-									addToLoaded(MutablePropertySources::addLast, false));
-							this.processedProfiles.add(profile);
-						}
-						load(null, this::getNegativeProfileFilter, addToLoaded(MutablePropertySources::addFirst, true));
-						addLoadedPropertySources();
-						applyActiveProfiles(defaultProperties);
-					});
+			FilteredPropertySource.apply(this.environment, DefaultPropertiesPropertySource.NAME, LOAD_FILTERED_PROPERTY,
+					this::loadWithFilteredProperties);
+		}
+
+		private void loadWithFilteredProperties(PropertySource<?> defaultProperties) {
+			this.profiles = new LinkedList<>();
+			this.processedProfiles = new LinkedList<>();
+			this.activatedProfiles = false;
+			this.loaded = new LinkedHashMap<>();
+			initializeProfiles();
+			while (!this.profiles.isEmpty()) {
+				Profile profile = this.profiles.poll();
+				if (isDefaultProfile(profile)) {
+					addProfileToEnvironment(profile.getName());
+				}
+				load(profile, this::getPositiveProfileFilter, addToLoaded(MutablePropertySources::addLast, false));
+				this.processedProfiles.add(profile);
+			}
+			load(null, this::getNegativeProfileFilter, addToLoaded(MutablePropertySources::addFirst, true));
+			addLoadedPropertySources();
+			applyActiveProfiles(defaultProperties);
 		}
 
 		/**
@@ -443,9 +426,10 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 		private void load(Profile profile, DocumentFilterFactory filterFactory, DocumentConsumer consumer) {
 			getSearchLocations().forEach((location) -> {
+				String nonOptionalLocation = ConfigDataLocation.of(location).getValue();
 				boolean isDirectory = location.endsWith("/");
 				Set<String> names = isDirectory ? getSearchNames() : NO_SEARCH_NAMES;
-				names.forEach((name) -> load(location, name, profile, filterFactory, consumer));
+				names.forEach((name) -> load(nonOptionalLocation, name, profile, filterFactory, consumer));
 			});
 		}
 
@@ -556,9 +540,9 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			}
 		}
 
-		private String getLocationName(String location, Resource resource) {
-			if (!location.contains("*")) {
-				return location;
+		private String getLocationName(String locationReference, Resource resource) {
+			if (!locationReference.contains("*")) {
+				return locationReference;
 			}
 			if (resource instanceof FileSystemResource) {
 				return ((FileSystemResource) resource).getPath();
@@ -566,24 +550,24 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			return resource.getDescription();
 		}
 
-		private Resource[] getResources(String location) {
+		private Resource[] getResources(String locationReference) {
 			try {
-				if (location.contains("*")) {
-					return getResourcesFromPatternLocation(location);
+				if (locationReference.contains("*")) {
+					return getResourcesFromPatternLocationReference(locationReference);
 				}
-				return new Resource[] { this.resourceLoader.getResource(location) };
+				return new Resource[] { this.resourceLoader.getResource(locationReference) };
 			}
 			catch (Exception ex) {
 				return EMPTY_RESOURCES;
 			}
 		}
 
-		private Resource[] getResourcesFromPatternLocation(String location) throws IOException {
-			String directoryPath = location.substring(0, location.indexOf("*/"));
-			String fileName = location.substring(location.lastIndexOf("/") + 1);
+		private Resource[] getResourcesFromPatternLocationReference(String locationReference) throws IOException {
+			String directoryPath = locationReference.substring(0, locationReference.indexOf("*/"));
 			Resource resource = this.resourceLoader.getResource(directoryPath);
 			File[] files = resource.getFile().listFiles(File::isDirectory);
 			if (files != null) {
+				String fileName = locationReference.substring(locationReference.lastIndexOf("/") + 1);
 				Arrays.sort(files, FILE_COMPARATOR);
 				return Arrays.stream(files).map((file) -> file.listFiles((dir, name) -> name.equals(fileName)))
 						.filter(Objects::nonNull).flatMap((Function<File[], Stream<File>>) Arrays::stream)
@@ -626,7 +610,8 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			}).collect(Collectors.toList());
 		}
 
-		private StringBuilder getDescription(String prefix, String location, Resource resource, Profile profile) {
+		private StringBuilder getDescription(String prefix, String locationReference, Resource resource,
+				Profile profile) {
 			StringBuilder result = new StringBuilder(prefix);
 			try {
 				if (resource != null) {
@@ -634,12 +619,12 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 					result.append("'");
 					result.append(uri);
 					result.append("' (");
-					result.append(location);
+					result.append(locationReference);
 					result.append(")");
 				}
 			}
 			catch (IOException ex) {
-				result.append(location);
+				result.append(locationReference);
 			}
 			if (profile != null) {
 				result.append(" for profile ");
@@ -749,8 +734,8 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		private void addLoadedPropertySource(MutablePropertySources destination, String lastAdded,
 				PropertySource<?> source) {
 			if (lastAdded == null) {
-				if (destination.contains(DEFAULT_PROPERTIES)) {
-					destination.addBefore(DEFAULT_PROPERTIES, source);
+				if (destination.contains(DefaultPropertiesPropertySource.NAME)) {
+					destination.addBefore(DefaultPropertiesPropertySource.NAME, source);
 				}
 				else {
 					destination.addLast(source);
